@@ -1,0 +1,392 @@
+- hosts: servers
+  become: yes
+
+  tasks:
+
+    # ==========================
+    # SYSTEM CONFIGURATION
+    # ==========================
+    
+    - name: Update apt cache and upgrade system securely
+      apt:
+        upgrade: dist
+        update_cache: yes
+
+    - name: Map hostnames in /etc/hosts statically
+      blockinfile:
+        path: /etc/hosts
+        block: |
+          192.168.56.11 loadbalancer
+          192.168.56.12 webserver1
+          192.168.56.13 webserver2
+          192.168.56.14 appserver
+          192.168.56.15 backup
+          192.168.56.17 monitoring
+
+    - name: Create devops user with password-protected sudo capability
+      user:
+        name: devops
+        groups: sudo
+        password: "{{ devops_password | password_hash('sha512', 'mysecretsalt') }}"
+        shell: /bin/bash
+        create_home: yes
+
+    - name: Ensure .ssh directory exists for devops
+      file:
+        path: /home/devops/.ssh
+        state: directory
+        owner: devops
+        group: devops
+        mode: '0700'
+
+    - name: Copy Vagrant authorized keys to devops for passwordless SSH
+      copy:
+        remote_src: yes
+        src: /home/vagrant/.ssh/authorized_keys
+        dest: /home/devops/.ssh/authorized_keys
+        owner: devops
+        group: devops
+        mode: '0600'
+
+    - name: Disable root SSH login
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PermitRootLogin"
+        line: "PermitRootLogin no"
+      notify: Restart SSH
+
+    - name: Set UFW default deny incoming
+      ufw:
+        default: deny
+        direction: incoming
+
+    - name: Allow SSH
+      ufw:
+        rule: allow
+        port: 22
+
+    - name: Allow HTTP gracefully only on Loadbalancer
+      ufw:
+        rule: allow
+        port: 80
+      when: inventory_hostname == 'loadbalancer'
+
+    - name: Allow backend API (8080) internally
+      ufw:
+        rule: allow
+        port: 8080
+        proto: tcp
+      when: inventory_hostname == 'appserver'
+
+
+
+    - name: Allow frontend web traffic (3000) internally
+      ufw:
+        rule: allow
+        port: 3000
+        proto: tcp
+      when: inventory_hostname in ['webserver1', 'webserver2']
+
+    - name: Allow Netdata port on UFW
+      ufw:
+        rule: allow
+        port: 19999
+        proto: tcp
+      when: inventory_hostname in ['webserver1', 'webserver2', 'appserver']
+    
+    - name: Allow WireGuard port on UFW
+      ufw:
+        rule: allow
+        port: 51820
+        proto: udp
+
+    - name: Enable firewall (default deny)
+      ufw:
+        state: enabled
+
+    - name: Install unattended upgrades
+      apt:
+        name: unattended-upgrades
+        state: present
+
+    - name: Enforce 20auto-upgrades Rubric Configuration
+      copy:
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        content: |
+          APT::Periodic::Update-Package-Lists "1";
+          APT::Periodic::Unattended-Upgrade "1";
+
+    - name: Install Fail2Ban
+      apt:
+        name: fail2ban
+        state: present
+
+    - name: Ensure Fail2Ban is running and enabled
+      service:
+        name: fail2ban
+        state: started
+        enabled: yes
+
+    - name: Download Netdata kickstart script
+      shell: "curl -Ss https://get.netdata.cloud/kickstart.sh -o /tmp/netdata-kickstart.sh"
+      args:
+        creates: /usr/sbin/netdata
+
+    - name: Install Netdata via kickstart script
+      shell: "bash /tmp/netdata-kickstart.sh --dont-wait"
+      args:
+        creates: /usr/sbin/netdata
+      
+    - name: Install WireGuard
+      apt:
+        name: wireguard
+        state: present
+
+    - name: Generate WireGuard Private Key
+      shell: "wg genkey | tee /etc/wireguard/private.key"
+      args:
+        creates: /etc/wireguard/private.key
+
+    - name: Derive WireGuard Public Key
+      shell: "cat /etc/wireguard/private.key | wg pubkey | tee /etc/wireguard/public.key"
+      args:
+        creates: /etc/wireguard/public.key
+
+    - name: Fetch WireGuard Public Key
+      slurp:
+        src: /etc/wireguard/public.key
+      register: wg_pubkey_raw
+
+    - name: Store WireGuard Public Key as Fact
+      set_fact:
+        wg_public_key: "{{ wg_pubkey_raw['content'] | b64decode | trim }}"
+
+    - name: Generate WireGuard wg0 configuration base
+      shell: |
+        echo "[Interface]" > /etc/wireguard/wg0.conf
+        echo "PrivateKey = $(cat /etc/wireguard/private.key)" >> /etc/wireguard/wg0.conf
+        echo "ListenPort = 51820" >> /etc/wireguard/wg0.conf
+        echo "Address = 10.8.0.{{ hostvars[inventory_hostname]['ansible_host'].split('.')[-1] }}/24" >> /etc/wireguard/wg0.conf
+      args:
+        creates: /etc/wireguard/wg0.conf
+
+    - name: Add WireGuard Peers dynamically
+      blockinfile:
+        path: /etc/wireguard/wg0.conf
+        marker: "# {mark} ANSIBLE MANAGED BLOCK PEER {{ item }}"
+        block: |
+          [Peer]
+          PublicKey = {{ hostvars[item]['wg_public_key'] }}
+          AllowedIPs = 10.8.0.{{ hostvars[item]['ansible_host'].split('.')[-1] }}/32
+          Endpoint = {{ hostvars[item]['ansible_host'] }}:51820
+      when: item != inventory_hostname
+      with_items: "{{ ansible_play_hosts }}"
+      notify: Restart WireGuard
+
+    - name: Start and enable WireGuard interface wg0
+      service:
+        name: wg-quick@wg0
+        state: started
+        enabled: yes
+
+    - name: Allow WireGuard port on UFW
+      ufw:
+        rule: allow
+        port: 51820
+        proto: udp
+
+    # ==========================
+    # CONTAINERIZATION & ROUTING
+    # ==========================
+
+    - name: Install Docker Engine
+      apt:
+        name: 
+          - docker.io
+          - docker-compose
+        state: present
+      when: inventory_hostname in ['appserver', 'webserver1', 'webserver2', 'monitoring']
+
+    - name: Add devops user to docker group
+      user:
+        name: devops
+        groups: docker
+        append: yes
+      when: inventory_hostname in ['appserver', 'webserver1', 'webserver2', 'monitoring']
+
+    - name: Install Nginx for Loadbalancing
+      apt:
+        name: nginx
+        state: present
+      when: inventory_hostname == 'loadbalancer'
+
+    - name: Configure Nginx least_conn Upstream
+      copy:
+        dest: /etc/nginx/sites-available/default
+        content: |
+          upstream vitals {
+              least_conn;
+              server 192.168.56.12:3000;
+              server 192.168.56.13:3000;
+          }
+          server {
+              listen 80;
+              location / {
+                  proxy_pass http://vitals;
+              }
+          }
+      when: inventory_hostname == 'loadbalancer'
+      notify: Restart Nginx
+
+
+
+    # ==========================
+    # BACKUP VM CONFIGURATION
+    # ==========================
+    - name: Setup Backup Directory
+      file: 
+        path: /backups 
+        state: directory
+      when: inventory_hostname == 'backup'
+    
+    - name: Establish Backup Cron Job
+      cron:
+        name: "Weekly full system backup"
+        special_time: weekly
+        job: "tar -czf /backups/system_backup_$(date +\\%Y\\%m\\%d).tar.gz /etc /home /vagrant 2>/dev/null"
+      when: inventory_hostname == 'backup'
+
+    - name: Disable password authentication
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^PasswordAuthentication"
+        line: "PasswordAuthentication no"
+      notify: Restart SSH
+
+    - name: Allow only devops user (and Vagrant for bootstrapping)
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^AllowUsers"
+        line: "AllowUsers devops vagrant"
+      notify: Restart SSH
+
+    - name: Set secure umask
+      lineinfile:
+        path: /etc/profile
+        line: "umask 027"
+
+    - name: Set secure umask in login.defs
+      lineinfile:
+        path: /etc/login.defs
+        regexp: "^UMASK"
+        line: "UMASK 027"
+
+    - name: Verify no unused network interfaces exist
+      shell: ip link show
+      register: network_interfaces
+      changed_when: false
+
+    - name: Display network interfaces for audit
+      debug:
+        var: network_interfaces.stdout_lines
+
+    - name: Remove vagrant from AllowUsers to fully lock down SSH
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "^AllowUsers"
+        line: "AllowUsers devops"
+      notify: Restart SSH
+
+    # ==========================
+    # MONITORING & LOGGING
+    # ==========================
+    - name: Install Node Exporter (Prometheus OS Metrics)
+      apt:
+        name: prometheus-node-exporter
+        state: present
+
+    - name: Ensure Node Exporter is running
+      service:
+        name: prometheus-node-exporter
+        state: started
+        enabled: yes
+
+    - name: Run cAdvisor container for Docker metrics
+      shell: |
+        docker rm -f cadvisor || true
+        docker run -d \
+          --volume=/:/rootfs:ro \
+          --volume=/var/run:/var/run:ro \
+          --volume=/sys:/sys:ro \
+          --volume=/var/lib/docker/:/var/lib/docker:ro \
+          --volume=/dev/disk/:/dev/disk:ro \
+          --publish=8081:8080 \
+          --detach=true \
+          --name=cadvisor \
+          gcr.io/cadvisor/cadvisor:latest
+      when: inventory_hostname in ['appserver', 'webserver1', 'webserver2']
+
+    - name: Install Filebeat APT Key
+      shell: "curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch | gpg --dearmor -o /usr/share/keyrings/elastic-keyring.gpg"
+      args:
+        creates: /usr/share/keyrings/elastic-keyring.gpg
+
+    - name: Add Elastic APT repository
+      apt_repository:
+        repo: "deb [signed-by=/usr/share/keyrings/elastic-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main"
+        state: present
+        filename: elastic-8.x
+
+    - name: Install Filebeat
+      apt:
+        name: filebeat
+        state: present
+        update_cache: yes
+
+    - name: Configure Filebeat to send to Logstash
+      copy:
+        dest: /etc/filebeat/filebeat.yml
+        content: |
+          filebeat.inputs:
+          - type: container
+            paths: 
+              - '/var/lib/docker/containers/*/*.log'
+          - type: filestream
+            id: my-filestream-id
+            enabled: false
+            paths:
+              - /var/log/*.log
+          output.logstash:
+            hosts: ["192.168.56.17:5044"]
+      notify: Restart Filebeat
+
+    - name: Copy Monitoring Stack to Monitoring VM
+      copy:
+        src: /Users/williamle/my_cloud_project/kood-sisu/sherlock-logs/monitoring-stack/
+        dest: /opt/monitoring-stack
+        owner: root
+        group: root
+        mode: '0755'
+      when: inventory_hostname == 'monitoring'
+
+    - name: Start Monitoring Stack via Docker Compose
+      shell: "cd /opt/monitoring-stack && docker-compose up -d"
+      when: inventory_hostname == 'monitoring'
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: ssh
+        state: restarted
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted
+    - name: Restart WireGuard
+      service:
+        name: wg-quick@wg0
+        state: restarted
+    - name: Restart Filebeat
+      service:
+        name: filebeat
+        state: restarted

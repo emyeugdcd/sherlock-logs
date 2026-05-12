@@ -18,14 +18,14 @@ Here is the new breakdown:
 
 | VM Name | Old RAM | New RAM | Why? |
 | :--- | :--- | :--- | :--- |
-| **loadbalancer** | 1024 MB | 256 MB | Nginx is incredibly lightweight. It just forwards HTTP traffic. It can easily run on 256MB. |
-| **backup** | 1024 MB | 256 MB | This VM just runs a `cron` job to tar files once a week. It does basically nothing else. |
-| **webserver1** | 1024 MB | 512 MB | Runs a small Node.js container and cAdvisor. Node can be memory-hungry, but 512MB is plenty for a simple React app. |
-| **webserver2** | 1024 MB | 512 MB | Same as `webserver1`. |
-| **appserver** | 2048 MB | 512 MB | Runs the Go backend and cAdvisor. Go is extremely memory efficient compared to Java or Node. It barely uses 50MB of RAM! |
+| **loadbalancer** | 1024 MB | 1024 MB | While Nginx is incredibly lightweight, Ubuntu Server 22.04 requires at least 1GB to boot reliably without OOM panics. |
+| **backup** | 1024 MB | 1024 MB | Same as above. The OS needs 1GB to boot, even if the cron job does almost nothing. |
+| **webserver1** | 1024 MB | 1024 MB | Runs a small Node.js container and cAdvisor. |
+| **webserver2** | 1024 MB | 1024 MB | Same as `webserver1`. |
+| **appserver** | 2048 MB | 1024 MB | Runs the Go backend and cAdvisor. Go is extremely memory efficient compared to Java or Node. |
 | **monitoring** | 4096 MB | 3584 MB (3.5 GB) | Runs the ELK stack, Prometheus, and Grafana. Elasticsearch and Logstash are Java applications that require large heap sizes. We constrained them to 1GB and 512MB respectively in the `docker-compose.yml`, so 3.5GB for the whole VM gives them enough breathing room. |
 
-**Total Impact:** We cut the RAM usage in half (from 10GB down to 5.5GB). Your 18GB Mac will now handle this cluster with zero sweat!
+**Total Impact:** We cut the RAM usage significantly (from 10GB down to 8.5GB). Your 18GB Mac will now handle this cluster smoothly, and we've established the true baseline: 1GB is the hard minimum for Ubuntu 22.04 VMs!
 
 ## 3. What about Cached Files?
 You correctly noticed that macOS uses a lot of RAM for "cached files." Modern operating systems believe that **"Free RAM is Wasted RAM."** 

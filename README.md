@@ -3,7 +3,7 @@
 This project builds upon the `automation-alchemy` infrastructure, integrating a robust observability stack. It adds a centralized **Monitoring VM** that hosts Prometheus, Grafana, and the ELK Stack (Elasticsearch, Logstash, Kibana) to provide real-time metrics and aggregated logging across all nodes.
 
 ## What's New Compared to Automation Alchemy?
-1. **The Monitoring VM:** A 6th VM (`192.168.56.17`) configured with 4GB of RAM exclusively hosts our observability tools.
+1. **The Monitoring VM:** A 6th VM (`192.168.56.17`) configured with 3.5GB of RAM exclusively hosts our observability tools. Other VMs have been reconfigured with 1GB of RAM each to save resources while maintaining stability.
 2. **Prometheus & Grafana:** Prometheus scrapes metrics from all VMs, and Grafana visualizes them on port `3000`.
 3. **ELK Stack & Filebeat:** Filebeat is installed on all VMs, tailing `/var/log/*.log` and Docker container logs, shipping them to Logstash -> Elasticsearch -> Kibana (port `5601`).
 4. **Agent Deployments:** Node Exporter is installed on all VMs (OS metrics), and cAdvisor is deployed via Docker on application servers (container metrics).
@@ -12,28 +12,14 @@ This project builds upon the `automation-alchemy` infrastructure, integrating a 
 ## Requirements
 - VirtualBox & Vagrant
 - Ansible
-- **Memory:** Ensure your host machine has at least 10GB of free RAM (the Monitoring VM alone requests 4GB for the ELK stack).
 
 ## Installation & Deployment
 
-1. **Provision the VMs:**
-   Run Vagrant to create all 6 VMs. *This will take a few minutes.*
-   ```bash
-   vagrant up
-   ```
+Run the master playbook to configure the OS, UFW, WireGuard, Docker, and the Observability Stack.
 
-2. **Deploy the Infrastructure (Ansible):**
-   Run the master playbook to configure the OS, UFW, WireGuard, Docker, and the Observability Stack.
-   ```bash
-   ./super_deploy.sh
-   ```
-   *(Note: The playbook will automatically inject the `devops_password` and set up the Monitoring Stack via Docker Compose on the new VM).*
-
-3. **Deploy the Applications:**
-   Since GitHub Actions runners cannot reach local IPs, use the local deploy script to build and run the Docker containers.
-   ```bash
-   ./deploy_apps.sh
-   ```
+```bash
+./super_deploy.sh
+```
 
 ## Manual Verification (How to Test)
 

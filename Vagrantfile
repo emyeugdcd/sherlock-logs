@@ -19,10 +19,8 @@ Vagrant.configure("2") do |config|
       node.vm.provider "vmware_desktop" do |v|
         if name == "monitoring"
           v.vmx["memsize"] = "3584" # 3.5 GB
-        elsif name == "loadbalancer" || name == "backup"
-          v.vmx["memsize"] = "256"
         else
-          v.vmx["memsize"] = "512"
+          v.vmx["memsize"] = "1024" # 1 GB
         end
         v.vmx["numvcpus"] = (name == "loadbalancer" || name == "monitoring") ? "2" : "1"
       end

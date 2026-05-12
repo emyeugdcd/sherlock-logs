@@ -1,0 +1,23 @@
+1. What is Ansible and how does it differ from a shell script that does the same thing?
+
+Ansible is an infrastructure automation tool that uses YAML playbooks to describe the desired state of a system. The key difference from a shell script is idempotency, running an Ansible playbook twice produces the same result as running it once, because each module checks the current state before acting. If a package is already installed, Ansible skips it. If a file already has the right content, Ansible doesn't rewrite it. A shell script typically has no such intelligence, running apt install twice is harmless but running certain commands twice (like appending to a file) creates duplicates. Ansible also connects to multiple hosts in parallel via SSH with no agent required on the target machines.
+
+2. What is an inventory file and what does it tell Ansible?
+
+An inventory file lists the hosts Ansible should manage, organised into groups. In my inventory.ini, all six VMs are in the [servers] group with their IPs, SSH users, and key file paths. The [servers:vars] section sets variables that apply to the whole group, in my case, StrictHostKeyChecking=no so Ansible doesn't prompt for host verification. When I run ansible-playbook -i inventory.ini setup.yml, Ansible reads the inventory to know which machines to connect to and how to authenticate, then applies the playbook to all of them. I can target specific groups or hosts using the --limit flag if I only want to run against a subset.
+
+3. What is the when: condition in Ansible and why is it important for multi-role playbooks?
+
+when: is a conditional that controls whether a task runs on a given host. Without it, every task runs on every host in the inventory. In my playbook, Docker should only be installed on appserver and the webservers, not the loadbalancer or backup VM. Nginx should only be configured on the loadbalancer. Jenkins only on cicd-server. The when: inventory_hostname == 'loadbalancer' condition makes Ansible skip that task on all other hosts. This lets me write a single playbook covering my entire infrastructure rather than separate playbooks per server role, while still applying role-appropriate configuration to each machine.
+
+4. What is a handler in Ansible and why use one instead of just running a service restart task directly?
+
+A handler is a task that only runs when explicitly notified by another task, and only runs once at the end of the play regardless of how many times it was notified. In my playbook, three different tasks modify sshd_config and all notify the Restart SSH handler. Without handlers, you'd either restart SSH after every single config change (three restarts, unnecessary) or forget to restart it at all. With handlers, SSH restarts exactly once at the end after all config changes are applied. This is both more efficient and safer, you don't want to restart a service mid-playbook when other tasks that depend on it haven't run yet.
+
+5. What is the difference between the copy, lineinfile, and blockinfile modules? When would you use each?
+
+copy writes an entire file to the target, replacing whatever was there. Use it when you own the whole file, like Nginx config or the 20auto-upgrades file, where you control all the content. lineinfile manages a single line in an existing file: it finds a line matching a regex and replaces it, or adds it if not found. Use it for modifying config files that you don't fully own, like sshd_config where you only want to change specific directives. blockinfile inserts or replaces a block of multiple lines, marked by comment delimiters so Ansible can find and update it on subsequent runs. I used blockinfile for /etc/hosts to insert all six VM entries as a block.
+
+6. Your super_deploy.sh uses || to fall back between ansible_user=vagrant and ansible_user=devops. What problem does this solve and what are its limitations?
+
+The problem: the playbook creates the devops user and eventually locks out vagrant SSH. On a fresh VM only vagrant exists, so the first run must use ansible_user=vagrant. On a VM where the playbook already ran partially, vagrant may be locked out but devops is configured, so you need ansible_user=devops. The fallback || handles both cases automatically. The limitation is that if the first run fails for a reason other than authentication: say a package fails to install: the || will still trigger the second run with ansible_user=devops, which will also fail but for the real reason. I lose visibility into the actual error. A more robust solution is to check whether the devops user exists first and branch explicitly, or use Ansible's own connection variables with a pre-task that detects which user is available. 

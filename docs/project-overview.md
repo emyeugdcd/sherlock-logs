@@ -1,34 +1,59 @@
-Automation Alchemy 🔮
+sherlock logs 🕵️
 The situation 👀
-Your successful setup of the virtual infrastructure and deployment of the diagnostic application has impressed the CTO. During a meeting, they reveal ambitious expansion plans for the company. The startup's user base is growing rapidly, requiring the deployment of numerous instances across multiple regions to meet demand.
-As you consider the challenge ahead, you realize that manually repeating the setup process for each new instance would be time-consuming and prone to errors. Inspiration strikes – automation.
-Automation is a cornerstone of DevOps practices, enabling teams to streamline processes, reduce errors, and increase efficiency across the entire SDLC. By automating repetitive tasks such as infrastructure provisioning, configuration management, and application deployment, DevOps engineers can focus on more strategic initiatives and innovation.
-Moreover, the automation mindset encourages DevOps professionals to continuously seek opportunities for improvement, leading to more robust, scalable, and maintainable systems over time.
+Your automation skills have significantly improved the efficiency of your startup's operations. The CTO is thrilled with the progress but has identified a new challenge. As the company's infrastructure grows and becomes more complex, it's becoming increasingly difficult to monitor system health, track performance, and troubleshoot issues across all the distributed components.
+Monitoring and logging are vital in the modern IT industry, ensuring system reliability, performance, and security. Effective monitoring provides real-time insights into infrastructure and application health, enabling proactive issue resolution. Logging offers detailed historical records essential for debugging, auditing, and compliance. Together, they enable continuous visibility and control over complex environments, enhancing operational efficiency, reducing downtime, and supporting data-driven decision-making, ultimately driving business success.
 Functional requirements 📋
-Automating infrastructure creation and configuration 🖥️🔧
-Before diving into the task, it's crucial to get familiar with various automation tools. Each tool has its own strengths, quirks, and ideal use cases. The tools you pick now might be perfect for this task but could be less stellar for other parts of the DevOps cycle. So, do your homework! Research the tools, weigh their pros and cons, and choose wisely (helpful links are at the bottom for your convenience).
-In this task, you'll need to automate everything from Server Sorcery 101 and Infrastructure Insight. Here's what your automation magic should accomplish:
-Summon VMs: Create at least 4 VMs (or more if you've added extra features) and configure their networking.
-Fortify and Configure: Harden the VMs with necessary users, permissions, and best practices to ensure they're secure.
-Prepare for Deployment: Set up the servers to host and deploy your application.
-Remember, you're essentially repeating the configurations from the previous tasks. Hopefully, you've kept your documentation handy—it's about to become your best friend!
-Setting Up a CI/CD Pipeline 🔁
-In the world of CI/CD, there are many tools that aim to ship software quickly and efficiently. Just like automation tools, each CI/CD tool has its unique strengths and use cases. So, before you dive in, take some time to research and familiarize yourself with the available options.
-Now, let's get to the final task of this topic. You'll create another VM that will host your chosen CI/CD tool(s) and integrate it into your current flow. This will save you from the tedious task of manually pushing new code changes to the servers.
-Here's what your CI/CD pipeline should do:
-Track Changes: The CI/CD tool(s) must track changes in your Git repository and trigger the pipeline upon changes in your application code.
-Checkout and Build: The pipeline will then checkout your source code and enter the build stage, creating an artifact and pushing it to the registry.
-Deploy: From there, the CI will take over and deploy the updated application on your servers.
-You're already a master of automation, so make sure to include the automation of the CI/CD VM into your flow.
+For this project, you'll be using industry-leading tools: Prometheus and Grafana for monitoring, and the ELK stack for logging.
+Setting Up Monitoring and Logging 📊📝
+As with any critical tools, it's better to have them running separately from other logic. Therefore, spin up a new VM which will bear the duty of monitoring and logging your environment and set up the following:
+Monitoring:
+Prometheus to collect metrics from all sources.
+Assisting tools like Node Exporter, cAdvisor, and/or others to send relevant metrics to Prometheus.
+Rewrite Existing Infrastructure Metrics Application to expose its metrics in a format that Prometheus can scrape. This involves adding a metrics endpoint to the application using Prometheus client libraries.
+Grafana to visualize metrics from Prometheus.
+For monitoring, the goal is to provide real-time visibility into the performance and health of all system components, including VMs, Docker containers, and the application.
+Logging:
+Elasticsearch to store and index logs.
+Logstash to collect and process logs from various sources.
+Filebeat or similar log shipper to collect and forward logs to Logstash.
+Rewrite Existing Infrastructure Metrics Application to send its logs to Logstash. This involves configuring the application to use a logging framework that supports sending logs to Logstash, or using Filebeat to collect and forward the application's logs.
+Kibana to visualize logs from Elasticsearch.
+For logging, the goal is to centralize and analyze logs from all parts of the system, enabling efficient troubleshooting, security monitoring, and historical analysis of system behavior.
+Creating Dashboards 📈
+There's not much use in collecting metrics and logs if you can't visualize and analyze them effectively. Dashboards provide a powerful way to gain insights into your system's performance and health, enabling you to make informed decisions and quickly identify issues.
+At minimum, you will have to create the dashboards listed below, but you are encouraged to include any additional metrics/logs as you see fit to enhance your monitoring and logging capabilities.
+Grafana
+VM Performance Dashboard: CPU usage, Memory utilization, Disk I/O, Network traffic
+Docker Container Dashboard: Container health, CPU and memory usage, Restart counts
+Application Performance Dashboard: Response times, Error rates, 1 custom application metric
+Kibana
+System Logs Dashboard: system logs from all VMs (e.g., syslog, dmesg)
+Application Logs Dashboard: application-specific logs (e.g., error logs, access logs)
+Docker Logs Dashboard: Docker container logs (e.g., stdout, stderr outputs)
+Creating Alerts 🚨
+Getting alerted at the earliest sign of potential issues is crucial for mitigating problems before they escalate into critical failures.
+Set up the alerts listed below, but as before, you are encouraged to add as many additional alerts as you see fit to enhance your monitoring capabilities.
+VM-related alerts:
+CPU usage exceeds 80% for more than 5 minutes
+Available disk space falls below 20%
+Memory usage exceeds 90% for more than 5 minutes
+Docker-related alerts:
+Container restarts more than 3 times in 15 minutes
+Container memory usage exceeds 80% of its limit
+General infrastructure alerts:
+Any VM becomes unreachable
+Elasticsearch cluster status changes to yellow or red
+Automation and Integration 🤖
+As with previous tasks, automation is key. Ensure that the setup of your new monitoring and logging VM is incorporated into your existing automation flow. Additionally, make sure that your CI/CD pipeline is updated to include the deployment of any necessary monitoring or logging agents to new instances as they're created.
+Expected outcome 🎯
+By the end, you should have a fully functional monitoring and logging system that allows you to:
+View real-time performance metrics across your system.
+Quickly identify and troubleshoot issues.
+Analyze historical performance data.
+Receive timely alerts for critical issues.
 Extra requirements 📚
-Testing Integration
-Let's make sure the code is top-notch by integrating testing into your pipeline. This includes code quality analysis to detect bugs and enforce coding standards, performance tests to simulate user interactions and measure response times, security tests to identify vulnerabilities, and any additional tests you'd like to run.
-Rollback Strategy
-When things go sideways (and they might), you need a solid rollback plan. This plan should allow to quickly revert to a previous version of the application. The key here is speed and efficiency—get back on track as fast as possible.
-Alert System
-Don't be the last to know when something's up. Set up notifications to keep you in the loop. Whether it's a successful deployment or a hiccup in the system, make sure you're the first to hear about it. Slack, email, carrier pigeon - whatever works for you!
-One-Click Automation
-Feeling like a DevOps superhero? Here's your ultimate challenge: Create a one-click wonder that sets up and deploys everything from scratch, 0-100. Imagine pressing a button and watching your entire infrastructure spring to life.
+Advanced Alerting Rules: Configure advanced alerting rules that go beyond simple threshold-based alerts. This can include trend-based alerts (e.g., a steady increase in CPU usage over time) or alerts based on combinations of metrics (e.g., high CPU usage and low available memory simultaneously).
+Extended Notification: Configure your monitoring system to send notifications to an external platform whenever a critical alert is triggered.
 Bonus functionality 🎁
 You're welcome to implement other bonuses as you see fit. But anything you implement must not change the default functional behavior of your project.
 You may use additional feature flags, command line arguments or separate builds to switch your bonus functionality on.

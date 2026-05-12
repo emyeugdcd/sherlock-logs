@@ -24,8 +24,15 @@ jobs:
       - name: Run Static Analysis
         run: echo "Running Static Analysis..."
         
-      - name: Simulate Go Linting and Node.js testing
-        run: echo "Simulating Go Linting and Node.js testing..."
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          
+      - name: Run Go Unit Tests
+        run: |
+          cd backend
+          go test -v ./...
         
       - name: Report Status
         run: echo "Testing Passed successfully!"

@@ -12,6 +12,13 @@
         upgrade: dist
         update_cache: yes
 
+    - name: Stop cloud-init from overwriting /etc/hosts
+      lineinfile:
+        path: /etc/cloud/cloud.cfg
+        regexp: "^ - update_etc_hosts"
+        state: absent
+      ignore_errors: yes
+
     - name: Map hostnames in /etc/hosts statically
       blockinfile:
         path: /etc/hosts
@@ -30,6 +37,13 @@
         password: "{{ devops_password | password_hash('sha512', 'mysecretsalt') }}"
         shell: /bin/bash
         create_home: yes
+
+    - name: Remove Vagrant insecure sudo exemption (force password for sudo)
+      lineinfile:
+        path: /etc/sudoers
+        regexp: "^Defaults.*exempt_group=sudo"
+        state: absent
+      validate: '/usr/sbin/visudo -cf %s'
 
     - name: Ensure .ssh directory exists for devops
       file:
@@ -78,14 +92,31 @@
         proto: tcp
       when: inventory_hostname == 'appserver'
 
-
-
     - name: Allow frontend web traffic (3000) internally
       ufw:
         rule: allow
         port: 3000
         proto: tcp
       when: inventory_hostname in ['webserver1', 'webserver2']
+
+    - name: Allow monitoring tools web UI and APIs
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      with_items:
+        - 3000   # Grafana
+        - 5601   # Kibana
+        - 9090   # Prometheus
+        - 9200   # Elasticsearch
+        - 5044   # Logstash (for Filebeat)
+      when: inventory_hostname == 'monitoring'
+
+    - name: Allow Node Exporter port on UFW
+      ufw:
+        rule: allow
+        port: 9100
+        proto: tcp
 
     - name: Allow Netdata port on UFW
       ufw:
@@ -189,11 +220,6 @@
         state: started
         enabled: yes
 
-    - name: Allow WireGuard port on UFW
-      ufw:
-        rule: allow
-        port: 51820
-        proto: udp
 
     # ==========================
     # CONTAINERIZATION & ROUTING
@@ -331,6 +357,11 @@
       args:
         creates: /usr/share/keyrings/elastic-keyring.gpg
 
+    - name: Ensure Elastic APT Key is readable by apt
+      file:
+        path: /usr/share/keyrings/elastic-keyring.gpg
+        mode: '0644'
+
     - name: Add Elastic APT repository
       apt_repository:
         repo: "deb [signed-by=/usr/share/keyrings/elastic-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main"
@@ -367,6 +398,14 @@
         owner: root
         group: root
         mode: '0755'
+      when: inventory_hostname == 'monitoring'
+
+    - name: Increase vm.max_map_count for Elasticsearch
+      sysctl:
+        name: vm.max_map_count
+        value: '262144'
+        state: present
+        reload: yes
       when: inventory_hostname == 'monitoring'
 
     - name: Start Monitoring Stack via Docker Compose

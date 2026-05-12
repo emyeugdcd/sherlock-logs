@@ -1,4 +1,4 @@
-name: Automation Alchemy CI/CD Pipeline
+name: Sherlock Logs CI/CD Pipeline
 
 on:
   push:

@@ -1,0 +1,18 @@
+1. Why disable root SSH login? What's the risk if you leave it enabled?
+Root is the superuser account that exists on every Linux system with the same predictable name. If root SSH is enabled, attackers running brute-force scripts only need to guess the password: the username is already known. By disabling root SSH and requiring login as a named user (devops in my case) with sudo for privileged operations, I added two layers: attackers must guess both a valid username and its password. I also get an audit trail: sudo logs which user ran which privileged command, whereas root login leaves no record of who actually did what.
+
+2. What is SSH key authentication and why is it more secure than password authentication?
+SSH key authentication uses a cryptographic key pair: a private key I keep secret on my machine, and a public key I put on the server in ~/.ssh/authorized_keys. When I connect, SSH proves I have the private key without ever transmitting it. It's more secure than passwords for two reasons: key pairs are cryptographically much stronger than any password a human would choose (a 2048-bit RSA key has more entropy than any brute-forceable password), and the private key never leaves my machine so it can't be intercepted in transit or leaked from the server. My Ansible playbook disables PasswordAuthentication and copies the Vagrant SSH keys to the devops user for exactly this reason.
+
+3. What is Fail2Ban and how does it work?
+Fail2Ban monitors log files for patterns indicating repeated failed authentication attempts, then automatically adds firewall rules to ban the offending IP for a configurable period. It watches /var/log/auth.log for failed SSH logins by default. If an IP fails login 5 times in 10 minutes (default settings), Fail2Ban adds an iptables rule blocking that IP for 10 minutes. This defeats brute-force and credential-stuffing attacks that try thousands of passwords in sequence. It's a defence-in-depth measure: it doesn't replace strong passwords or key auth, but it dramatically raises the cost of automated attacks.
+
+4. What is the principle of least privilege and where did you apply it in this project?
+Least privilege means every component only has access to exactly what it needs and nothing more. I applied it in several places. UFW firewall rules are role-specific: the loadbalancer only opens port 80, the appserver only opens 8080, and the webservers only open 3000. The devops user has sudo access rather than running everything as root. SSH is restricted to specific allowed users via AllowUsers in sshd_config. The umask is set to 027, meaning new files are not world-readable by default. Each of these individually is a small restriction, but combined they significantly reduce the blast radius if any single component is compromised.
+
+5. There's a security issue in your Ansible playbook with the devops user password. What is it and how would you fix it?
+The plaintext password "password" and the salt "mysecretsalt" are hardcoded directly in the playbook file, which lives in version control. Anyone who can read the repo can see the source password. Even though it's hashed before being applied to the system, the original value is exposed. The fix is to never put secrets in source files. Use Ansible Vault to encrypt sensitive values, or pass them at runtime via --extra-vars:
+password: "{{ devops_password | password_hash('sha512') }}"
+Then run the playbook with:
+ansible-playbook setup.yml --extra-vars "devops_password=actualpassword"
+Or store it in an encrypted vault file that is never committed to the repo.

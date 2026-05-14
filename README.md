@@ -28,6 +28,8 @@ Run the master playbook to configure the OS, UFW, WireGuard, Docker, and the Obs
    - Backend JSON API: `http://192.168.56.14:8080/metrics`
    - Backend Prometheus Exporter: `http://192.168.56.14:8080/prometheus`
 
+> From down here, the detailed steps for the below verification steps can be found in the `docs/ui-guide.md` file. However, these are the quick steps if you want to verify them quickly.
+
 2. **Verify Grafana (Metrics):**
    - URL: `http://192.168.56.17:3000`
    - Login: `admin` / `admin`

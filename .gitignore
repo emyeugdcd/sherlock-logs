@@ -2,3 +2,6 @@
 *.log
 *.pem
 *.key
+
+.docs/syntax-guide.md
+.docs/alertmanager-tutorial.md

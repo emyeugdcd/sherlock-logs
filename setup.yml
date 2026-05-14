@@ -43,7 +43,7 @@
         path: /etc/sudoers
         regexp: "^Defaults.*exempt_group=sudo"
         state: absent
-      validate: '/usr/sbin/visudo -cf %s'
+        validate: '/usr/sbin/visudo -cf %s'
 
     - name: Ensure .ssh directory exists for devops
       file:

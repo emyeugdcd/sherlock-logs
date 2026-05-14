@@ -1,76 +1,100 @@
-# Learning Notes: The Shift to Automation Alchemy
+# Sherlock Logs: Tutorial & Quick Study Guide
 
-So I now have some experience with **Infrastructure as Code (IaC)** thanks to the previous two projects, **Server Sorcery 101** and **Infrastructure Insight**, which you can find on my github profile(@emyeugdcd). In the previous projects, I wrote code (Ansible, Vagrant) that built the virtual machine environments. However, I still had to *manually* trigger the processes. For example, I had to type `ansible-playbook setup.yml`, and if I wanted to update the website's CSS, I had to manually run `docker build` again.
+I compiled and prepared this study guide to help myself to understand the new concepts and terminologies involved. By now, we all know that Sherlock Logs is basically Automation Alchemy, but enhanced with observability tools like the ELK stack and Prometheus + Grafana. This document is divided into two parts:
+1. **The Mental Models**: A quick, jargon-free tutorial on Prometheus, Grafana, and the ELK stack.
+2. **The `how-to-test.md` Checklist**: Detailed answers and explanations for every requirement in the testing rubric. I used this as a basis for studying before I myself can check off the checklist of the how-to-test.md file.
 
-**Automation Alchemy** introduces the next evolution of DevOps: **Continuous Integration & Continuous Deployment (CI/CD)**. 
+---
 
-## Concepts covered
-Here are the new concepts needed for this chapter:
-### 1. The CI/CD Pipeline (The Assembly Line)
-Instead of running commands manually, we introduce a "Robot Manager" (like Jenkins, GitLab CI, or GitHub Actions). This robot constantly watches your Git repository. The second you run `git push`, the robot wakes up and executes a pipeline of tasks automatically. 
+## Part 1: The Mental Models (Tutorial & Quick Guide)
+### 1. Prometheus (The Metric Scraper)
+* **What it is:** A time-series database. It stores numbers that change over time (e.g., CPU %, memory bytes, number of HTTP requests).
+* **How it works:** It uses a **Pull Model**. It has a list of IP addresses. Every 15 seconds, it knocks on the door of those IPs at a specific path (like `http://192.168.56.12:9100/metrics`) and says, "Give me your current numbers!"
+* **In this project:** It scrapes the VMs (via Node Exporter), the Docker containers (via cAdvisor), and the Go backend.
+* **In Production:** It is the industry standard for Kubernetes. It constantly scrapes thousands of microservices and fires alerts to PagerDuty if metrics cross a red line.
 
-### 2. Testing Integration (Quality Gates)
-Before the robot deploys the code, it tests it. 
-*   **Static Analysis:** It scans Node.js and Go code for syntax errors.
-*   **Security Scans:** It checks if we accidentally pushed a password or SSH key.
-*   If *any* test fails, the robot rejects the deployment and sends an alert. It prevents the delivery of broken code!
+### 2. Grafana (The Visualization Layer)
+* **What it is:** A beautiful dashboarding tool. It doesn't store any data itself. 
+* **How it works:** You connect it to a "Data Source" (like Prometheus). When you open a dashboard, Grafana asks Prometheus for the numbers and draws pretty graphs.
+* **In this project:** You use it to build dashboards for VM Performance, Docker Containers, and Application.
+* **In Production:** It is the "Single Pane of Glass." Operations teams usually have massive Grafana dashboards on TVs in their offices to see the health of the entire company at a glance.
 
-### 3. Artifacts and Registries
-In the previous project, I built Docker images natively *on* the target servers using `/vagrant` folders. In a true enterprise, servers do not build their own code! 
-The CI/CD robot checks out our code, builds the Docker Image itself, and pushes that image to a **Docker Registry** (like DockerHub). Then, it simply tells the web servers to "pull and run" the finished artifact. 
+### 3. The ELK Stack (The Log Detectives)
+While Prometheus handles **Metrics** (numbers), ELK handles **Logs** (text). ELK stands for **E**lasticsearch, **L**ogstash, and **K**ibana.
 
-### 4. Rollback Strategies
-What happens if the robot deploys the code, but the website crashes? A rollback strategy means the robot keeps the *old* Docker container paused in the background. If the new one fails a health check, the robot instantly deletes the new one and unpauses the old one in milliseconds.
+* **Elasticsearch (The Database):** A massive, RAM-hungry database specifically optimized for searching text extremely fast. 
+* **Logstash / Filebeat (The Pipes):** Log files live on individual VMs. Filebeat sits on the VM, reads the log file, and ships the text over the network. Logstash acts as a filter in the middle—it can read a messy log line, extract the IP address and error code, format it neatly as JSON, and push it into Elasticsearch.
+* **Kibana (The UI):** Grafana is to Prometheus what Kibana is to Elasticsearch. Kibana is the web interface we use to search for logs. If a user says "My payment failed at 2:05 PM", we open Kibana, type "payment error", and Elasticsearch instantly finds the log.
 
-### 5. One-Click Automation (The Holy Grail)
-This is the ultimate goal of the project. A single script (`./super_deploy.sh`) that you can run on a completely empty Mac. It will boot all the VMs, install the firewalls, install the CI/CD robot, build the code, and launch the website without you touching the keyboard a second time.
+---
 
-## Improvements made compared to previous projects (server-sorcery & infrastructure-insight)
+## Part 2: Answers to `how-to-test.md`
 
-### 1. The Netdata Port (Principle of Least Privilege)
-What changed: I added `when: inventory_hostname in ['webserver1', 'webserver2', 'appserver']` to the UFW rule for port 19999. 
+I used this section to study for deeper understanding of the project requirements, also to prove that I understood and could implement these concepts.
 
-Explanation: By default, our Ansible script was indiscriminately opening port 19999 on every machine (even the load balancer and backup server). So I have learnt that in DevOps and security, we follow the **Principle of Least Privilege**. That is, if a machine isn't running a specific service, its firewall should absolutely not have that port open. It’s an unnecessary attack vector.
+### Architecture & Theory
 
-### 2. Hardcoded Passwords (Secret Management)
-What changed: In `setup.yml`, I changed the hardcoded password string to `{{ devops_password | password_hash('sha512', 'mysecretsalt') }}`. In `super_deploy.sh`, I added `--extra-vars "devops_password=SuperSecurePassword123!"` to my Ansible execution. 
+**1. Difference between push-based and pull-based monitoring? Why does Prometheus use pull?**
+* **Push:** Every server runs a script that sends its metrics to a central monitoring server. (e.g., StatsD, Telegraf).
+* **Pull:** The central monitoring server (Prometheus) reaches out to the servers to grab the metrics.
+* **Why Pull?** In a distributed architecture, if a server crashes in a push model, it just stops sending data. You might not notice immediately. In a pull model, Prometheus tries to scrape the server, gets a "Connection Refused", and instantly knows the server is dead. Pull also prevents the central server from being DDoS'd by thousands of agents pushing data at the same time.
 
-Explanation: Never commit passwords, API keys, or secrets to a Git repository. Ever. If your repo goes public, bots will scrape those secrets in seconds. By using variables (`{{ devops_password }}`), the password is no longer in the code. Instead, we should inject it at runtime using `--extra-vars`. In a real production environment, we wouldn't even put it in the bash script; we would use a secure vault like Ansible Vault, HashiCorp Vault, or AWS Secrets Manager to inject it securely during the pipeline run.
+**2. Architecture of the ELK stack and component roles?**
+* **Elasticsearch:** The storage and search engine. Indexes log data for lightning-fast querying.
+* **Logstash:** The data processing pipeline. Ingests data from multiple sources, transforms it (parsing messy text into structured JSON), and sends it to Elasticsearch.
+* **Kibana:** The visualization and exploration UI. Used to search the logs stored in Elasticsearch and build log-based dashboards.
 
-### 3. WireGuard's Two-Pass Peer Distribution
-What changed: I completely rewrote the WireGuard Ansible block to use a "Two-Pass" approach.
+**3. Advantages/Disadvantages of Prometheus over Nagios/Zabbix?**
+* **Advantages:** Prometheus uses a dimensional data model (key-value labels) which is infinitely more flexible than Nagios's rigid host/service model. It is designed for dynamic cloud environments where servers spin up and down constantly. PromQL is an incredibly powerful math language for metrics.Dimensional data modeling is widely considered superior to normalized host/service (operational) models for analytics and reporting because it is designed specifically for speed, usability, and business context, rather than transaction processing. They have superior query performance, simple to use, and are designed to handle historical data gracefully, allowing for tracking changes over time
+* **Disadvantages:** Prometheus is strictly for metrics, not logs. It also does not offer long-term durable storage out-of-the-box (it drops old data) unless paired with a tool like Thanos.
 
-Pass 1: Ansible generates the Private/Public keys on every VM, and then uses the `slurp` module to read all those Public Keys back into Ansible's memory (`set_fact`).
-Pass 2: Ansible goes back to every VM and dynamically builds the `wg0.conf` file by looping through all the other VMs (`ansible_play_hosts`) and injecting their specific Public Keys and IP addresses into the `[Peer]` blocks.
+**6. Benefits of Grafana over Kibana or Datadog?**
+* **Over Kibana:** Grafana is purpose-built for time-series metrics from dozens of different databases (Prometheus, MySQL, InfluxDB). Kibana is tightly coupled to Elasticsearch and is better for log text search.
+* **Over Datadog:** Grafana is open-source and free to host yourself. Datadog is a paid, proprietary SaaS product that can get extremely expensive at scale.
 
-Explanation: WireGuard is a peer-to-peer cryptokey routing VPN. It doesn't have a traditional "server/client" model. For VM A to talk to VM B securely, A needs B's public key, and B needs A's public key. If we just install WireGuard (which is what I did previously in the previous two projects), the interface turns on, but it has no idea who it's allowed to talk to.
+### Configuration & Troubleshooting
 
-**Practicality in Production:** This is extremely common and practical! Companies use this exact automated pattern to dynamically link multi-cloud environments (e.g., creating a secure mesh between AWS servers and Google Cloud servers). Every time a new server is spun up, Ansible or Terraform distributes its public key to the rest of the fleet so they can all communicate securely.
+**4. How to adjust the Prometheus scrape interval?**
+I edited the `prometheus.yml` configuration file. Under `global:`, I set `scrape_interval: 15s`. We can also override this for specific targets in the `scrape_configs` block.
 
-### 4. Reclaiming Jenkins' Wasted Resources
-What changed: I completely removed `cicd-server` from my `Vagrantfile`, `inventory.ini`, `/etc/hosts`, and stripped the Jenkins installation out of `setup.yml`. 
+**5. Common issues with Node Exporter / cAdvisor setup?**
+* **Firewall blocks:** Forgetting to open port `9100` (Node Exporter) or `8081` (cAdvisor) in UFW.
+* **Docker Socket:** cAdvisor needs to read the Docker daemon to get container metrics. If `/var/run:/var/run:ro` is not mounted in its `docker run` command, it will fail.
+* **Incorrect IPs:** Prometheus trying to scrape the wrong IP because `/etc/hosts` isn't configured correctly.
 
-Explanation: We have migrated to GitHub Actions, meaning GitHub's cloud servers are now doing the heavy lifting of building our Docker images. Running a heavy Java application like Jenkins on a dedicated VM locally when it's doing absolutely nothing is just burning RAM and CPU. We killed the VM which was built initally for Jenkins. The reason why I chose Github Actions over Jenkins is because it integrates seamlessly with GitHub and is easy to use. Also, GitHub Actions is a cloud-based CI/CD tool that allows you to automate your software development workflows right from your GitHub repository. More information on this, check `jenkins-vs-github-actions.md` file in `docs` folder.
+**7. How to expose application metrics using Prometheus client libraries?**
+I imported a library (like `prometheus/client_golang` for Go). I defined a metric variable, like a `Counter` for HTTP requests. Every time my backend application handles a request, I call `counter.Inc()`. Finally, I register a `/metrics` HTTP route that the library automatically serves in the Prometheus text format.
 
+**9. How to handle Logstash format inconsistencies and parsing errors?**
+Logstash uses a filter called `Grok` to parse text. If a log line doesn't match the Grok pattern, Logstash tags it with `_grokparsefailure`. To handle this, we can write conditional logic in the Logstash pipeline (`if "_grokparsefailure" in [tags] { ... }`) to either apply a fallback pattern or dump the raw log into a special "unparsed" index so it doesn't break the main data.
 
-## SHERLOCK-LOGS
+**12. Troubleshooting common issues with metric collection?**
+Always check the Prometheus "Targets" page (`http://<prometheus-ip>:9090/targets`). It will tell you exactly why a scrape is failing. Common errors are `connection refused` (firewall or service down) or `context deadline exceeded` (network latency).
 
-The scope is large but not as scary as it looks
-The project brief lists a lot of tools — Prometheus, Grafana, Node Exporter, cAdvisor, Elasticsearch, Logstash, Filebeat, Kibana. That's eight tools. But here's what I'd tell any junior engineer staring at this list: most of these tools are configuration, not programming. You're not learning a new language. You're learning how to wire things together with YAML config files and web UIs. That's a fundamentally different cognitive load than what you've already done writing Go backends or Ansible playbooks.
-The monitoring stack (Prometheus + Grafana) and the logging stack (ELK) are also two separate, parallel things. You don't need to understand both simultaneously. Do one, then the other.
-Your learning instinct is correct — with one condition
-The "learn by doing, study what you don't understand as you hit it" approach is genuinely how senior engineers work. Nobody reads the entire Prometheus documentation before writing their first config. You spin it up, you get it running, you hit a problem, you go read that specific thing. That cycle is faster and stickier than front-loading theory.
-The one condition: you need just enough conceptual foundation before you start, or you'll be lost when things break and you won't know what questions to ask. For each tool, that's about 20-30 minutes of reading, not days.
-Here's exactly how I'd structure your attack on this project:
-Week 1 — Monitoring stack only. Spin up your new monitoring VM in Vagrant and Ansible. Get Prometheus running, get Node Exporter on one VM (just one, not all six), confirm metrics are flowing. Then add Grafana and connect it to Prometheus. Build the VM performance dashboard for that one VM. Once it works for one, scaling to all six is just copy-paste in your Ansible playbook. Don't touch ELK yet.
-Week 2 — Monitoring polish + alerts. Get Node Exporter on all VMs, add cAdvisor for Docker metrics, build the container and application dashboards, wire up the Prometheus alerting rules. The alerts are just YAML threshold configs — not complex once you understand the syntax.
-Week 3 — ELK stack. Elasticsearch first (just get it running and healthy), then Kibana connected to it, then Filebeat shipping logs from your VMs. Logstash comes last — it's the processing layer in the middle and you can skip it initially and have Filebeat send directly to Elasticsearch to reduce complexity.
-Week 4 — Integration and automation. Add all of this to your Ansible playbook so it's automated, update your GitHub Actions pipeline to deploy monitoring agents to new instances.
-The specific things worth understanding before you start:
-For Prometheus: understand the pull model (Prometheus scrapes your apps on a schedule, unlike traditional monitoring that pushes to a server) and what a metrics endpoint looks like. Your Go backend already has one — the project asks you to expose it in Prometheus format using the client library, which is maybe 15 lines of Go.
-For ELK: understand that Elasticsearch is just a database optimised for log text search, Kibana is its UI, and Filebeat/Logstash are the pipes that get logs into it. Once that mental model clicks, the config makes sense.
-What I'd flag as the hardest parts specifically:
-The ELK stack is memory-hungry. Elasticsearch alone wants 1-2GB. On your current Vagrant setup with 1GB VMs, you're going to hit resource problems. Plan to give your monitoring VM at least 4GB RAM — adjust the Vagrantfile accordingly.
-The "rewrite your existing application to expose Prometheus metrics" requirement is actually interesting work. Your Go backend from Infrastructure Insight already reads from /proc — adding Prometheus client library instrumentation on top of that is a genuinely good portfolio piece because it shows you understand observability from the application layer, not just the infrastructure layer.
-The WireGuard peer issue I flagged in your setup.yml — you'll want that resolved before this project because the monitoring VM needs to communicate with all six existing VMs to scrape metrics, and if your VPN isn't actually routing traffic, you'll have confusing connectivity problems.
-Bottom line: Don't study these tools. Use them. Read just enough to understand the mental model of each one (30 minutes max per tool), then build. When something breaks — and things will break, Elasticsearch especially — that's when you open the docs. The project is designed to be learned by doing. That's why it exists.
+**13. Creating long-term retention policies?**
+Prometheus stores data on disk. You set retention using the command-line flag `--storage.tsdb.retention.time=15d` (keep data for 15 days). For Elasticsearch, you use "Index Lifecycle Management" (ILM) to automatically delete logs older than 30 days to prevent your hard drive from filling up.
+
+**15. Handling CI/CD dynamic agent configuration?**
+CI/CD pipeline (or Ansible) should use environment variables or templating. For example, Filebeat needs to know the IP of Logstash. Instead of hardcoding it, Ansible injects the IP into `filebeat.yml` based on the environment it's deploying to (dev vs prod).
+
+### Alerting
+
+**16 & 18. Avoiding alert fatigue and fine-tuning thresholds?**
+Alert fatigue happens when on-call engineers get pinged so often for false alarms that they start ignoring them. To fix this:
+* **Use duration (`for: 5m`):** Don't alert the second CPU hits 90%. Wait 5 minutes to ensure it's a real problem, not just a temporary spike.
+* **Actionable alerts only:** Don't page someone at 3 AM because "Disk is at 70%". Page them if "Disk will be 100% full in 4 hours based on current growth rate."
+
+**17. Logstash sending alert notifications?**
+Logstash isn't typically the best tool for sending alerts (Prometheus Alertmanager is better), but we can do it by adding an `output` plugin in Logstash. For example, if Logstash matches a log with the word `FATAL`, we can route it to an `http` output plugin that triggers a Slack webhook.
+
+**28. Using PromQL for advanced alerts (Combinations/Trends)?**
+PromQL allows math. Instead of alerting if error count is > 10, we can alert if the *error rate* divided by the *total request rate* is > 5%. 
+Example: `rate(http_requests_total{status="500"}[5m]) / rate(http_requests_total[5m]) > 0.05`
+
+**29. External platform notifications and throttling?**
+Prometheus sends alerts to **Alertmanager**. Alertmanager handles routing the alert to Slack/Email/PagerDuty. It handles "throttling" (grouping multiple similar alerts into one message) and "escalation" (if the primary engineer doesn't acknowledge the alert in 15 minutes, page the manager).
+
+---
+
+## 🚀 How to use this guide
+Read this through a few times. Don't try to memorize it—try to understand the *why*. When you are writing your Ansible tasks to deploy these tools, refer back to the Mental Models to remind yourself what the tool is actually supposed to be doing!

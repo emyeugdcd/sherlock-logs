@@ -17,7 +17,7 @@ Instead, the workflow is always:
 
 ---
 
-## 🛑 Scenario 1: Proving the CI Pipeline Catches Bad Code
+## Scenario 1: Proving the CI Pipeline Catches Bad Code
 A CI pipeline is a **Quality Gate**. Its primary job is to *fail* when a developer writes bad code. If your CI pipeline always passes, it’s useless!
 
 ### How to test this in `sherlock-logs`:
@@ -34,21 +34,21 @@ A CI pipeline is a **Quality Gate**. Its primary job is to *fail* when a develop
    git push origin test-broken-ci
    ```
 4. **Observe the Results:**
-   - Go to the **Actions** tab in your GitHub repository.
-   - Click on the pipeline run for your `test-broken-ci` branch.
-   - You should see the `Run Go Unit Tests` step **FAIL (Red)**. 
-   - Expand the logs for that step, and you will see the exact Go compiler error explaining what you broke.
+   - Go to the **Actions** tab in this GitHub repository.
+   - Click on the pipeline run for the `test-broken-ci` branch.
+   - We should see the `Run Go Unit Tests` step **FAIL (Red)**. 
+   - Expand the logs for that step, and we will see the exact Go compiler error explaining what we broke.
    
-*Congratulations! You just proved that your pipeline successfully protects the `main` branch from broken code.*
+*Congratulations! We just proved that our pipeline successfully protects the `main` branch from broken code.*
 
 ---
 
-## ✅ Scenario 2: Proving the CI Pipeline Runs Real Tests
+## Scenario 2: Proving the CI Pipeline Runs Real Tests
 We just replaced the "mocked" echo test with a real unit test (`main_test.go`) that hits the `/health` endpoint and expects `{"status":"ok"}`. Let's prove that the test is actually executing!
 
 ### How to test this in `sherlock-logs`:
 1. **Fix the syntax error:**
-   Fix whatever you broke in Scenario 1.
+   Fix whatever we broke in Scenario 1.
 2. **Break the Business Logic:**
    Open `backend/main.go` and go to the `healthHandler` function. Change the JSON output from `{"status":"ok"}` to `{"status":"broken"}`.
 3. **Commit and Push:**
@@ -63,11 +63,11 @@ We just replaced the "mocked" echo test with a real unit test (`main_test.go`) t
    - However, the `Run Go Unit Tests` step will **FAIL**!
    - If you look at the logs, you will see `main_test.go` complaining: `handler returned unexpected body: got {"status":"broken"} want {"status":"ok"}`.
 
-*You have just proven that your automated tests are successfully validating business logic in the cloud!*
+*We have just proven that our automated tests are successfully validating business logic in the cloud.*
 
 ---
 
-## 🚀 Scenario 3: Testing Deployment Workflow (Local vs Real Life)
+## Scenario 3: Testing Deployment Workflow (Local vs Real Life)
 In a real-world enterprise environment, the `deploy` step in GitHub Actions will SSH into your production servers and deploy the code automatically. 
 
 ### In Real Life:
@@ -75,9 +75,9 @@ To test the deployment phase in real life, you use a **Staging Environment**.
 You would configure your GitHub Action to deploy to `staging.yourcompany.com` whenever a Pull Request is opened. You verify the deployment there. Only when the code is merged to `main` does the Action deploy to `production.yourcompany.com`.
 
 ### In Our Vagrant Project:
-Because GitHub's cloud servers cannot reach your local Mac's private VirtualBox IP addresses (`192.168.56.x`), our `deploy.yml` simulates the deployment phase using `echo` statements for educational purposes. 
+Because GitHub's cloud servers cannot reach my local Mac's private VirtualBox IP addresses (`192.168.56.x`), our `deploy.yml` simulates the deployment phase using `echo` statements for educational purposes. 
 
-To actually deploy your code locally after writing it, you use the deployment script:
+To actually deploy my code locally after writing it, I use the deployment script:
 ```bash
 ./deploy_apps.sh
 ```
@@ -85,11 +85,24 @@ This script acts exactly like the GitHub Action would in real life—it SSHs int
 
 ---
 
-## Summary Checklist for Students
-Whenever you build a new CI/CD pipeline, ask yourself:
+## Summary Checklist
+Whenever I build a new CI/CD pipeline, I will ask myself:
 - [ ] Did I remove all `echo "Simulating..."` steps and replace them with actual test commands?
 - [ ] Did I intentionally break the code and verify that the pipeline fails?
 - [ ] Did I intentionally break a unit test and verify that the pipeline fails?
 - [ ] Did I push perfect code and verify that the pipeline turns green?
 
-If you can check all four boxes, you have built a professional-grade CI pipeline!
+If I can check all four boxes, I will have built a professional-grade CI pipeline!
+
+## Github Actions's Deployment workflow (Blue/Green)
+
+1. Checkout repo
+2. Install dependencies
+3. Run tests
+4. Build Docker image
+5. Push image to registry
+6. SSH into AppServer
+7. Start GREEN deployment
+8. Run health checks
+9. Switch traffic
+10. Remove old BLUE deployment

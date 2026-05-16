@@ -15,13 +15,15 @@ This is the first project among the four projects that actually uses a web GUI! 
 * **What to do here:** This is where you build your dashboards. 
 * **Data Sources:** First, go to Settings > Data Sources, add "Prometheus", and point it to `http://192.168.56.17:9090` (or `http://localhost:9090` if they are in the same docker-compose network).
 * **Dashboards:** Click the '+' icon to create a dashboard. You can add a panel, select your Prometheus data source, and write a PromQL query to draw a graph of CPU usage.
+Here is a really useful link about creating Grafana dashboards:
+https://medium.com/@dineshmurali/introduction-to-monitoring-with-prometheus-grafana-ea338d93b2d9
 
 ### SETTING UP ALERTS IN GRAFANA
 I'm so happy that I don't *have* to write alerts in YAML code! Modern Grafana has a built-in Alerting UI that is much easier for beginners.
 1. In Grafana, click the **Alerting** (Bell icon) on the left menu.
 2. Click **Create Alert Rule**.
 3. **Condition:** You select a metric (like CPU usage) and set a threshold (e.g., `IS ABOVE 80`).
-4. **Duration:** You set the "Evaluate for" field to `5m` (This satisfies the "more than 5 minutes" requirement!).
+4. **Duration:** You set the "Evaluate for" field to `5m`.
 5. **Notifications:** You tell it where to send the alert (e.g., an Email or a Slack channel).
 
 *For the project, you can literally just create these alerts inside the Grafana UI to pass the requirements!*

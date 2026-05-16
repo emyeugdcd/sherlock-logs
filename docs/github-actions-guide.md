@@ -3,7 +3,6 @@
 So you’ve built a CI/CD pipeline using GitHub Actions! That’s a massive step toward becoming a proper DevOps engineer. But how do you actually know if it works? How do you test it without breaking the main branch of your repository? 
 
 This guide will teach you the professional workflow for testing GitHub Actions, both in this project and in real life.
-
 ---
 
 ## The Golden Rule: Never Test on `main`

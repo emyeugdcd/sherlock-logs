@@ -94,7 +94,10 @@ Example: `rate(http_requests_total{status="500"}[5m]) / rate(http_requests_total
 **29. External platform notifications and throttling?**
 Prometheus sends alerts to **Alertmanager**. Alertmanager handles routing the alert to Slack/Email/PagerDuty. It handles "throttling" (grouping multiple similar alerts into one message) and "escalation" (if the primary engineer doesn't acknowledge the alert in 15 minutes, page the manager).
 
+Here is how you test 28 and 29:
+
+1. Check Prometheus (The Rule Engine): Go to http://192.168.56.17:9090 in your browser. Click on the Alerts tab at the top. You should see your HighErrorRate alert listed! It will be colored Green and say INACTIVE (because we don't have any errors right now), but the fact that it is there means Prometheus successfully loaded our math query!
+
+2. Check Alertmanager (The Notification Engine): Go to http://192.168.56.17:9093 in your browser. This is the completely separate Alertmanager Web UI! If the page loads, it means Alertmanager is successfully running and ready to group and route any alerts Prometheus sends to it.
 ---
 
-## 🚀 How to use this guide
-Read this through a few times. Don't try to memorize it—try to understand the *why*. When you are writing your Ansible tasks to deploy these tools, refer back to the Mental Models to remind yourself what the tool is actually supposed to be doing!

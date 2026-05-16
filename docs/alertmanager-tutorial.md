@@ -62,4 +62,4 @@ groups:
 ```
 
 **Summary:** 
-For a beginner or personal project, sticking to Grafana Alerts is perfectly fine and satisfies the core requirements. But it is good to know that setting up Alertmanager and writing native PromQL rules is how it is done in heavy production environments!
+For a beginner or personal project like this, I think sticking to Grafana Alerts is perfectly fine and satisfies the core requirements. However, to score for extras, I need to use Alertmanager and PromQL. Still, it is good to know about setting up Alertmanager and writing native PromQL rules as it is how it is done in heavy production environments!

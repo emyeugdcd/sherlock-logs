@@ -1,18 +1,12 @@
 # Mac RAM Upgrades & VM Optimization Guide
 
-## 1. Upgrading Mac RAM: The Reality
-**Is it a good idea to upgrade the RAM of my Mac?**
-Unfortunately, the short answer is: **You can't.** 
-
-Modern Apple Silicon Macs (M1, M2, M3 series) and even recent Intel MacBooks have "Unified Memory." This means the RAM is physically soldered directly onto the CPU package to achieve incredible speed and efficiency. Because of this architectural choice, it is physically impossible to add or upgrade RAM after the initial purchase. The only way to get more RAM is to buy a brand-new Mac. 
-
-Since you have an 18GB model (which is a standard configuration for the M3 Pro chip), you have a very powerful machine! 18GB is plenty for software development; you just have to be smart about how you allocate it when running virtual machines.
+In the previous projects, we have been allocating 2GB of RAM to each VM, totaling 12GB for the entire cluster. However, this is not optimal as some VMs require less RAM than others and now, in this fourth project, I needed to add a new VM which is used for monitoring and logging, so it required more RAM (because ELK is a beast who feeds vigorously on RAM) By simply adding a new VM, we would be using 14GB of RAM in total, which would fry my computer and probably will crash due to the lack of RAM. So I decided to experiment with the RAM allocations for each VM to reduce the total RAM usage while maintaining the same functionality.
 
 ## 2. Min-Maxing VM RAM Allocations
 **Can we min-max all the VMs so the outcome of the project is the same but uses less memory?**
-Absolutely! This is a core DevOps skill: "Right-sizing" your infrastructure. Giving a VM more RAM than it actually uses is just wasted money in the real world. 
+Absolutely! Giving a VM more RAM than it actually uses is just wasted money in the real world production also. 
 
-By default, we were allocating 1-2GB per VM, which brought our total to ~10GB. I have optimized your `Vagrantfile` to dramatically reduce this footprint to **5.5 GB total** without sacrificing any functionality.
+By default, I have been allocating 2GB of RAM to each VM, which brought my total to ~12GB. I have optimized my `Vagrantfile` to dramatically reduce this footprint to **8.5 GB total** without sacrificing any functionality.
 
 Here is the new breakdown:
 
@@ -22,11 +16,7 @@ Here is the new breakdown:
 | **backup** | 1024 MB | 1024 MB | Same as above. The OS needs 1GB to boot, even if the cron job does almost nothing. |
 | **webserver1** | 1024 MB | 1024 MB | Runs a small Node.js container and cAdvisor. |
 | **webserver2** | 1024 MB | 1024 MB | Same as `webserver1`. |
-| **appserver** | 2048 MB | 1024 MB | Runs the Go backend and cAdvisor. Go is extremely memory efficient compared to Java or Node. |
+| **appserver** | 2048 MB | 1024 MB | Runs the Go backend and cAdvisor. Go is extremely memory efficient compared to Java or Node. so we can afford to give it 1GB of RAM less. |
 | **monitoring** | 4096 MB | 3584 MB (3.5 GB) | Runs the ELK stack, Prometheus, and Grafana. Elasticsearch and Logstash are Java applications that require large heap sizes. We constrained them to 1GB and 512MB respectively in the `docker-compose.yml`, so 3.5GB for the whole VM gives them enough breathing room. |
 
-**Total Impact:** We cut the RAM usage significantly (from 10GB down to 8.5GB). Your 18GB Mac will now handle this cluster smoothly, and we've established the true baseline: 1GB is the hard minimum for Ubuntu 22.04 VMs!
-
-## 3. What about Cached Files?
-You correctly noticed that macOS uses a lot of RAM for "cached files." Modern operating systems believe that **"Free RAM is Wasted RAM."** 
-If you have 18GB of RAM and your active apps are only using 8GB, macOS will use the remaining 10GB to cache files you recently opened so they load instantly next time. If a Virtual Machine suddenly asks for RAM, macOS instantly drops those cached files and hands the RAM over to the VM. You never need to worry about the "Cached" portion of your memory!
+**Total Impact:** I cut the RAM usage significantly (from 10GB down to 8.5GB). My Mac will now handle this cluster smoothly, and during this process of trials and errors, I have also established the fact that 1GB is the hard minimum for Ubuntu 22.04 VMs! (I tried 0.5GB at first, and the VM failed to boot...)

@@ -29,6 +29,17 @@ Link to project 3: [https://github.com/emyeugdcd/automation-alchemy](https://git
 - VMware Fusion & Vagrant
 - Ansible
 
+To run this project, you will need the following core tools installed on your operating system:
+- **Vagrant**: The orchestrator for the virtual machines.
+- **Ansible**: The configuration management tool used to provision the servers.
+- **A Hypervisor**: For this project, I used VMware Fusion
+  - Download **VMware Fusion Pro** (Free for personal use via Broadcom) and install the **Vagrant VMware Utility**.
+  - Install Vagrant and the VMware plugin:
+    ```bash
+    brew install hashicorp/tap/vagrant
+    vagrant plugin install vagrant-vmware-desktop
+    ```
+
 ## Installation & Deployment
 
 Run the master playbook to configure the OS, UFW, WireGuard, Docker, and the Observability Stack.

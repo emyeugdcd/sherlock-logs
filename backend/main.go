@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -26,11 +27,20 @@ var (
 		Name: "app_memory_used_mb",
 		Help: "Current memory used in MB read from /proc/meminfo",
 	})
+
+	cpuMutex       sync.RWMutex
+	cachedCPUUsage float64
 )
 
 func updatePrometheusMetrics() {
 	for {
-		cpuUsageGauge.Set(getCPUUsage())
+		cpuVal := getCPUUsage()
+		cpuUsageGauge.Set(cpuVal)
+
+		cpuMutex.Lock()
+		cachedCPUUsage = cpuVal
+		cpuMutex.Unlock()
+
 		_, used, _ := getMemory()
 		memUsedGauge.Set(float64(used))
 		time.Sleep(5 * time.Second)
@@ -178,6 +188,10 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 	hostname, _ := os.Hostname()
 	memTotal, memUsed, memPercent := getMemory()
 
+	cpuMutex.RLock()
+	currentCPU := cachedCPUUsage
+	cpuMutex.RUnlock()
+
 	metrics := Metrics{
 		Hostname:   hostname,
 		OS:         runtime.GOOS,
@@ -185,7 +199,7 @@ func metricsHandler(w http.ResponseWriter, r *http.Request) {
 		Uptime:     getUptime(),
 		CPUModel:   getCPUModel(),
 		CPUCores:   runtime.NumCPU(),
-		CPUUsage:   getCPUUsage(),
+		CPUUsage:   currentCPU,
 		MemTotal:   memTotal,
 		MemUsed:    memUsed,
 		MemPercent: memPercent,

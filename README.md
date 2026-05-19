@@ -24,29 +24,131 @@ Link to project 3: [https://github.com/emyeugdcd/automation-alchemy](https://git
 3. **ELK Stack & Filebeat:** Filebeat is installed on all VMs, tailing `/var/log/*.log` and Docker container logs, shipping them to Logstash -> Elasticsearch -> Kibana (port `5601`).
 4. **Agent Deployments:** Node Exporter is installed on all VMs (OS metrics), and cAdvisor is deployed via Docker on application servers (container metrics).
 5. **Backend Application Instrumentation:** The Go backend was updated to import `github.com/prometheus/client_golang/prometheus`. It now exposes custom CPU/Memory gauges on the `/prometheus` endpoint. It also uses `logrus` for structured JSON logging.
+6. Added SLIM_MODE and step-by-step instructions for running the project in SLIM_MODE. SLIM MODE is used to save RAM if host machine's RAM is under 8GB of RAM (limited memory)
+7. Added VM_Provider so now project can be tested on different OS.
 
-## Requirements
-- VMware Fusion & Vagrant
-- Ansible
-
-To run this project, you will need the following core tools installed on your operating system:
-- **Vagrant**: The orchestrator for the virtual machines.
-- **Ansible**: The configuration management tool used to provision the servers.
-- **A Hypervisor**: For this project, I used VMware Fusion
-  - Download **VMware Fusion Pro** (Free for personal use via Broadcom) and install the **Vagrant VMware Utility**.
-  - Install Vagrant and the VMware plugin:
-    ```bash
-    brew install hashicorp/tap/vagrant
-    vagrant plugin install vagrant-vmware-desktop
-    ```
-
-## Installation & Deployment
-
-Run the master playbook to configure the OS, UFW, WireGuard, Docker, and the Observability Stack.
-
+## Requirements & Setup
+ 
+### RAM Requirements
+ 
+| Mode | VMs | Total VM RAM | Recommended Host RAM |
+|------|-----|-------------|----------------------|
+| Normal | 6 VMs (incl. backup) | ~9.5 GB | 16 GB |
+| SLIM_MODE | 5 VMs (no backup) | ~6.5 GB | 8 GB |
+ 
+> **On 8GB RAM?** Use SLIM_MODE — see instructions below.
+ 
+---
+ 
+### Option A — macOS (VMware Fusion) — Original Setup
+ 
+This is the environment the project was developed on.
+ 
+**Install dependencies:**
+ 
+```bash
+brew install hashicorp/tap/vagrant
+vagrant plugin install vagrant-vmware-desktop
+```
+ 
+Also install [VMware Fusion Pro](https://www.vmware.com/products/fusion.html) (free for personal use via Broadcom) and the [Vagrant VMware Utility](https://developer.hashicorp.com/vagrant/docs/providers/vmware/vagrant-vmware-utility).
+ 
+**Run:**
+ 
 ```bash
 ./super_deploy.sh
 ```
+ 
+---
+ 
+### Option B — Linux or Windows (VirtualBox)
+ 
+**Install dependencies:**
+ 
+- [Vagrant](https://developer.hashicorp.com/vagrant/downloads)
+- [VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+- [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/index.html) (Linux/macOS only — Windows users should run Ansible from WSL2)
+**Run:**
+ 
+```bash
+VAGRANT_DEFAULT_PROVIDER=virtualbox ./super_deploy.sh
+```
+ 
+Or set the provider explicitly when bringing VMs up:
+ 
+```bash
+vagrant up --provider=virtualbox
+```
+ 
+---
+ 
+### SLIM_MODE — For hosts with 8GB RAM
+ 
+SLIM_MODE reduces memory allocation across all VMs and **removes the backup VM** entirely. Total allocated RAM drops from ~9.5GB to ~6.5GB, leaving enough headroom for the host OS.
+ 
+**RAM comparison:**
+ 
+| VM | Normal | SLIM_MODE |
+|----|--------|-----------|
+| loadbalancer | 1024 MB | 640 MB |
+| webserver1 | 1024 MB | 768 MB |
+| webserver2 | 1024 MB | 768 MB |
+| appserver | 1024 MB | 768 MB |
+| monitoring | 3584 MB | 3072 MB |
+| backup | 1024 MB | ❌ removed |
+| **Total** | **9.5 GB** | **~6.5 GB** |
+ 
+#### Observability & Vagrant Enhancements:
+- **Dynamic Provider Auto-Detection**: Both `./super_deploy.sh` and `./deploy_apps.sh` auto-detect the active Vagrant provider (`vmware_desktop`, `vmware_fusion`, or `virtualbox`) and automatically configure the correct SSH private keys.
+- **Dynamic JVM Heap Scaling**: Using Jinja2 templates, Elasticsearch and Logstash heap allocations are automatically optimized on the monitoring VM:
+  - **Normal**: Elasticsearch = 1GB heap, Logstash = 512MB heap.
+  - **SLIM_MODE**: Elasticsearch = 512MB heap, Logstash = 256MB heap (preventing VM Out-of-Memory crashes).
+- **Dynamic Prometheus Scraping**: The `backup` VM target is automatically omitted from Prometheus scraping in SLIM_MODE to avoid false-positive unreachable alerts.
+- **Sub-Millisecond Backend Metrics API**: The Go backend `/metrics` endpoint caches CPU usage updates in a background thread-safe goroutine using a read-write mutex (`sync.RWMutex`). This reduces API response latency from a blocking 500ms to less than 1ms.
+ 
+**How to Run in SLIM_MODE:**
+ 
+**On macOS (VMware):**
+ 
+```bash
+SLIM_MODE=true ./super_deploy.sh
+```
+ 
+**On Linux / Windows (VirtualBox):**
+ 
+```bash
+SLIM_MODE=true VAGRANT_DEFAULT_PROVIDER=virtualbox ./super_deploy.sh
+```
+ 
+Or step by step manually:
+ 
+```bash
+# 1. Bring up VMs
+SLIM_MODE=true vagrant up
+ 
+# 2. Run Ansible provisioning (replace <provider> with virtualbox, vmware_fusion, or vmware_desktop)
+ansible-playbook -i inventory_slim.ini setup.yml \
+  -e "ansible_user=vagrant devops_password=SuperSecurePassword123! ansible_become_pass=SuperSecurePassword123! slim_mode=true vagrant_provider=<provider>"
+ 
+# 3. Deploy application containers
+./deploy_apps.sh
+```
+ 
+---
+ 
+## Accessing the Stack
+ 
+Once deployed, all services are available at the following addresses:
+ 
+| Service | URL | Notes |
+|---------|-----|-------|
+| Application (via load balancer) | http://192.168.56.11 | Nginx routes to webserver1/2 |
+| Grafana | http://192.168.56.17:3000 | Default login: admin / admin |
+| Kibana | http://192.168.56.17:5601 | ELK log visualisation |
+| Prometheus | http://192.168.56.17:9090 | Raw metrics & query UI |
+| Netdata (webserver1) | http://192.168.56.12:19999 | Real-time per-VM metrics |
+| Netdata (webserver2) | http://192.168.56.13:19999 | Real-time per-VM metrics |
+| Netdata (appserver) | http://192.168.56.14:19999 | Real-time per-VM metrics |
 
 ## Manual Verification (How to Test)
 

@@ -30,7 +30,7 @@ services:
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "ES_JAVA_OPTS=-Xms{{ '512m' if slim_mode | default(false) | bool else '1g' }} -Xmx{{ '512m' if slim_mode | default(false) | bool else '1g' }}"
       - "cluster.routing.allocation.disk.threshold_enabled=false"
     ports:
       - "9200:9200"
@@ -46,7 +46,7 @@ services:
     ports:
       - "5044:5044"
     environment:
-      - "LS_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "LS_JAVA_OPTS=-Xms{{ '256m' if slim_mode | default(false) | bool else '512m' }} -Xmx{{ '256m' if slim_mode | default(false) | bool else '512m' }}"
     restart: unless-stopped
     networks:
       - monitoring

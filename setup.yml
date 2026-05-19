@@ -11,6 +11,10 @@
       apt:
         upgrade: dist
         update_cache: yes
+      register: apt_update_system
+      until: apt_update_system is success
+      retries: 5
+      delay: 10
 
     - name: Stop cloud-init from overwriting /etc/hosts
       lineinfile:
@@ -139,6 +143,10 @@
       apt:
         name: unattended-upgrades
         state: present
+      register: apt_install_unattended
+      until: apt_install_unattended is success
+      retries: 5
+      delay: 10
 
     - name: Enforce 20auto-upgrades Rubric Configuration
       copy:
@@ -151,6 +159,10 @@
       apt:
         name: fail2ban
         state: present
+      register: apt_install_fail2ban
+      until: apt_install_fail2ban is success
+      retries: 5
+      delay: 10
 
     - name: Ensure Fail2Ban is running and enabled
       service:
@@ -172,6 +184,10 @@
       apt:
         name: wireguard
         state: present
+      register: apt_install_wireguard
+      until: apt_install_wireguard is success
+      retries: 5
+      delay: 10
 
     - name: Generate WireGuard Private Key
       shell: "wg genkey | tee /etc/wireguard/private.key"
@@ -232,6 +248,10 @@
           - docker-compose
         state: present
       when: inventory_hostname in ['appserver', 'webserver1', 'webserver2', 'monitoring']
+      register: apt_install_docker
+      until: apt_install_docker is success
+      retries: 5
+      delay: 10
 
     - name: Add devops user to docker group
       user:
@@ -245,6 +265,10 @@
         name: nginx
         state: present
       when: inventory_hostname == 'loadbalancer'
+      register: apt_install_nginx
+      until: apt_install_nginx is success
+      retries: 5
+      delay: 10
 
     - name: Configure Nginx least_conn Upstream
       copy:
@@ -330,6 +354,10 @@
       apt:
         name: prometheus-node-exporter
         state: present
+      register: apt_install_node_exporter
+      until: apt_install_node_exporter is success
+      retries: 5
+      delay: 10
 
     - name: Ensure Node Exporter is running
       service:
@@ -373,6 +401,10 @@
         name: filebeat
         state: present
         update_cache: yes
+      register: apt_install_filebeat
+      until: apt_install_filebeat is success
+      retries: 5
+      delay: 10
 
     - name: Configure Filebeat to send to Logstash
       copy:
@@ -384,7 +416,7 @@
               - '/var/lib/docker/containers/*/*.log'
           - type: filestream
             id: my-filestream-id
-            enabled: false
+            enabled: true
             paths:
               - /var/log/*.log
           output.logstash:
@@ -393,11 +425,29 @@
 
     - name: Copy Monitoring Stack to Monitoring VM
       copy:
-        src: /Users/williamle/my_cloud_project/kood-sisu/sherlock-logs/monitoring-stack/
+        src: "{{ playbook_dir }}/monitoring-stack/"
         dest: /opt/monitoring-stack
         owner: root
         group: root
         mode: '0755'
+      when: inventory_hostname == 'monitoring'
+
+    - name: Template Prometheus Configuration
+      template:
+        src: "{{ playbook_dir }}/monitoring-stack/prometheus.yml.j2"
+        dest: /opt/monitoring-stack/prometheus.yml
+        owner: root
+        group: root
+        mode: '0644'
+      when: inventory_hostname == 'monitoring'
+
+    - name: Template Docker Compose Configuration
+      template:
+        src: "{{ playbook_dir }}/monitoring-stack/docker-compose.yml.j2"
+        dest: /opt/monitoring-stack/docker-compose.yml
+        owner: root
+        group: root
+        mode: '0644'
       when: inventory_hostname == 'monitoring'
 
     - name: Increase vm.max_map_count for Elasticsearch

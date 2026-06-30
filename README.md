@@ -1,5 +1,12 @@
-# Sherlock Logs (Monitoring & Logging Infrastructure)
-Welcome to Sherlock Logs!This is the fourth project of the 8-project DevOps module. Everything is documented clearly in the README, including what this project is about, how it connects to the previous projects, and how to test it yourself. I've also included a docs/ folder with my learning notes if you want to go deeper on any concept. 
+<div align="center">
+  <h1>Sherlock Logs</h1>
+  <p><strong>A scrub nurse running on Cloud: Chapter 4 of 8. A foundational DevOps journey into Infrastructure as Code, Linux Administration, and Server Security, with end-to-end automation using Github Actions (CI/CD) and Docker. But wait, now we have a whole new VM for monitoring & logging for our application!</strong></p>
+</div>
+
+--- 
+
+# Project Overview
+Welcome to **Sherlock Logs**! This is the fourth project of the 8-project DevOps module. Everything is documented clearly in the README, including what this project is about, how it connects to the previous projects, and how to test it yourself. I've also included a docs/ folder with my learning notes if you want to go deeper on any concept. 
 
 Here's a summary of all previous projects so you have context for what you're reviewing:
 

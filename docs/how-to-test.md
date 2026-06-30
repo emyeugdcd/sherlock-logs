@@ -1,3 +1,5 @@
+This is the how-to-test guide based on the testing requirements provided by kood/sisu to give you an overview of how to test the project. This time I made it a little bit different, if you want answers for what number, then you can check them in the learning_notes.md.    
+
 Mandatory
 
 1. Student can explain the difference between push-based and pull-based monitoring systems and justify why Prometheus uses a pull-based model.
